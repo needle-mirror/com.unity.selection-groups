@@ -2,20 +2,18 @@
   "displayName": "Selection Groups",
   "name": "com.unity.selection-groups",
   "unity": "2019.4",
-  "version": "0.0.5-preview",
+  "version": "0.0.7-preview",
   "description": "Provides editor tools for working with arbitrary groups of gameobjects along with the hierarchy window and inspector.",
-  "author": "Simon Wittber <simonwittber@unity3d.com> (https://github.com/smnwttbr)",
   "contributors": [
     "Simon Wittber <simonwittber@unity3d.com> (https://github.com/smnwttbr)",
     "Sindharta Tanuwijaya <sindharta.tanuwijaya@unity3d.com> (https://github.com/sindharta)"
   ],
-  "type": "tool",
   "upmCi": {
-    "footprint": "aee17b8468b44c93ce9e3be92db476a4f7af7ca7"
+    "footprint": "c31d37f244481999dfa3238e1dc5edb8f4ccbb25"
   },
   "repository": {
     "url": "https://github.com/Unity-Technologies/com.unity.selection-groups.git",
     "type": "git",
-    "revision": "9086f4ceffce80d605ca1487321c3b3e9e10a71e"
+    "revision": "7c0c1880c1ee737ed2fe6d1537ee0c80739f7728"
   }
 }
