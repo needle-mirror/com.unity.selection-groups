@@ -1,58 +1,79 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
+﻿using Unity.SelectionGroups;
+using Unity.SelectionGroups.Runtime;
 using UnityEditor;
-using UnityEditor.SceneManagement;
-using UnityEditorInternal;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 
-namespace Unity.SelectionGroups
+namespace Unity.SelectionGroupsEditor
 {
-
     public partial class SelectionGroupEditorWindow : EditorWindow
     {
-        bool HandleGroupDragEvents(Rect rect, SelectionGroup group)
+        
+        bool HandleDragEvents(Rect rect, ISelectionGroup group)
         {
             Event evt = Event.current;
+            if (!rect.Contains(evt.mousePosition))
+            {
+                return false;
+            }
+                
+            switch (evt.type)
+            {
+                case EventType.DragExited:
+                case EventType.DragPerform:
+                case EventType.DragUpdated:
+                case EventType.MouseDrag:
+                    // Debug.Log($"{evt.type} {group.Name}");
+                    break;
+            }
 
             switch (evt.type)
             {
+                case EventType.MouseDrag:
+                    //This event occurs when dragging inside the EditorWindow which contains this OnGUI method.
+                    //It would be better named DragStarted.
+                    // Debug.Log($"Start Drag: {group.Name}");
+                    DragAndDrop.PrepareStartDrag();
+                    if(hotMember != null)
+                        DragAndDrop.objectReferences = new []{ hotMember };
+                    else
+                        DragAndDrop.objectReferences = Selection.objects;
+
+                    DragAndDrop.StartDrag("Selection Group");
+                    evt.Use();
+                    break;
+                 case EventType.DragExited: 
+                     //This event occurs when MouseUp occurs, or the cursor leaves the EditorWindow.
+                     ////The cursor may come back into the EditorWindow, however MouseDrag will not be triggered.
+                     break;
                 case EventType.DragUpdated:
-                case EventType.DragPerform:
-                    if (!rect.Contains(evt.mousePosition))
-                        return false;
-
-                    var canDrop = string.IsNullOrEmpty(group.query);
-
+                    //This event can occur ay any time. VisualMode must be assigned a value other than Rejected, else
+                    //the DragPerform event will not be triggered.
+                    var canDrop = string.IsNullOrEmpty(group.Query);
                     if (!canDrop)
                         DragAndDrop.visualMode = DragAndDropVisualMode.Rejected;
                     else
                         DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-
-                    hotRect = rect;
-
-                    if (evt.type == EventType.DragPerform && canDrop)
+                    evt.Use();
+                    break;
+                case EventType.DragPerform:
+                    //This will only get called when a valid Drop occurs (determined by the above DragUpdated code)
+                    DragAndDrop.AcceptDrag();
+                    RegisterUndo(group, "Add Members");
+                    try
                     {
-                        DragAndDrop.AcceptDrag();
-                        Undo.RegisterCompleteObjectUndo(SelectionGroupManager.instance, "Add to group");
                         group.Add(DragAndDrop.objectReferences);
-                        hotRect = null;
-                        SelectionGroupManager.instance.SetIsDirty();
                     }
+                    catch (SelectionGroupException e)
+                    {
+                        ShowNotification(new GUIContent(e.Message));
+                    }
+
+                    evt.Use();
                     break;
             }
             return false;
         }
-
-
-
-        void ExitDrag()
-        {
-            hotRect = null;
-        }
-
 
     }
 }

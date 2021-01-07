@@ -1,24 +1,21 @@
-using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
+using Unity.SelectionGroups.Runtime;
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using UnityEditor;
-using System;
 
-namespace Unity.SelectionGroups
+namespace Unity.SelectionGroupsEditor
 {
 
     public partial class SelectionGroup : ISerializationCallbackReceiver
     {
 
         [SerializeField] string[] _enabledTools;
-        
+
         /// <summary>
         /// The deserialization callback.
         /// </summary>
         public void OnAfterDeserialize()
         {
+            enabledTools.Clear();
             enabledTools.UnionWith(_enabledTools);
         }
         /// <summary>
@@ -28,6 +25,6 @@ namespace Unity.SelectionGroups
         {
             _enabledTools = enabledTools.ToArray();
         }
-
+        
     }
 }

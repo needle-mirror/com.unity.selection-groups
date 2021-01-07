@@ -11,7 +11,6 @@ namespace Unity.GoQL
     /// </summary>
     public partial class GoQLExecutor
     {
-
         readonly Stack<object> stack = new Stack<object>();
         readonly DoubleBuffer<GameObject> selection = new DoubleBuffer<GameObject>();
         readonly List<object> instructions = new List<object>();
@@ -43,11 +42,7 @@ namespace Unity.GoQL
         /// An error message for the user if the Code property could not be parsed.
         /// </summary>
         /// <value></value>
-        public string Error
-        {
-            get;
-            set;
-        } = string.Empty;
+        public string Error { get; set; } = string.Empty;
 
         static Dictionary<string, Type> typeCache;
         static object typeCacheLock = new object();
@@ -88,6 +83,7 @@ namespace Unity.GoQL
                         }
                     }
                 }
+
                 if (typeCache.TryGetValue(name, out Type type))
                     return type;
                 return null;
@@ -100,20 +96,18 @@ namespace Unity.GoQL
         /// <returns></returns>
         public GameObject[] Execute()
         {
-            if (!refresh)
+            if (refresh)
             {
-                return selection.ToArray();
+                instructions.Clear();
+                GoQL.Parser.Parse(code, instructions, out parseResult);
             }
-
-            instructions.Clear();
-            GoQL.Parser.Parse(code, instructions, out parseResult);
             stack.Clear();
             selection.Clear();
             Error = string.Empty;
             if (instructions.Count > 0)
             {
                 var firstCode = instructions[0];
-                if (firstCode is GoQLCode && ((GoQLCode)firstCode) == GoQLCode.EnterChildren)
+                if (firstCode is GoQLCode && ((GoQLCode) firstCode) == GoQLCode.EnterChildren)
                 {
                     CollectRootObjects();
                 }
@@ -121,11 +115,12 @@ namespace Unity.GoQL
                 {
                     CollectAllObjects();
                 }
+
                 foreach (var i in instructions)
                 {
                     if (i is GoQLCode)
                     {
-                        ExecuteCode((GoQLCode)i);
+                        ExecuteCode((GoQLCode) i);
                     }
                     else
                     {
@@ -134,6 +129,7 @@ namespace Unity.GoQL
                 }
             }
             refresh = false;
+
             return selection.ToArray();
         }
 
@@ -167,6 +163,7 @@ namespace Unity.GoQL
                     _CollectAllGameObjects(j);
                 }
             }
+
             selection.Swap();
         }
 
@@ -217,6 +214,7 @@ namespace Unity.GoQL
                         selection.Add(i);
                 }
             }
+
             selection.Swap();
         }
 
@@ -224,7 +222,7 @@ namespace Unity.GoQL
         {
             if (selection.Count > 0)
             {
-                var argCount = (int)stack.Pop();
+                var argCount = (int) stack.Pop();
                 var indices = new int[selection.Count];
                 var lengths = new int[selection.Count];
                 for (var i = 0; i < selection.Count; i++)
@@ -232,6 +230,7 @@ namespace Unity.GoQL
                     indices[i] = selection[i].transform.GetSiblingIndex();
                     lengths[i] = selection[i].transform.parent == null ? 1 : selection[i].transform.parent.childCount;
                 }
+
                 for (var i = 0; i < argCount; i++)
                 {
                     var arg = stack.Pop();
@@ -239,7 +238,7 @@ namespace Unity.GoQL
                     {
                         for (var j = 0; j < selection.Count; j++)
                         {
-                            var index = mod(((int)arg), lengths[i]);
+                            var index = mod(((int) arg), lengths[i]);
                             if (index == indices[j])
                             {
                                 selection.Add(selection[j]);
@@ -248,7 +247,7 @@ namespace Unity.GoQL
                     }
                     else if (arg is Range)
                     {
-                        var range = (Range)arg;
+                        var range = (Range) arg;
                         for (var index = range.start; index < range.end; index++)
                         {
                             for (var j = 0; j < selection.Count; j++)
@@ -261,6 +260,7 @@ namespace Unity.GoQL
                         }
                     }
                 }
+
                 selection.Swap();
                 selection.Reverse();
             }
@@ -268,13 +268,13 @@ namespace Unity.GoQL
 
         void FilterByDiscriminators()
         {
-            var argCount = (int)stack.Pop();
+            var argCount = (int) stack.Pop();
             for (var i = 0; i < argCount; i++)
             {
                 var arg = stack.Pop();
                 if (arg is Discrimator)
                 {
-                    var discriminator = (Discrimator)arg;
+                    var discriminator = (Discrimator) arg;
                     PerformDiscrimination(discriminator);
                 }
             }
@@ -301,16 +301,27 @@ namespace Unity.GoQL
             }
         }
 
-        void PerformMaterialDiscrimination(string value)
+        System.Func<string, string, bool> MatchName(string discriminator)
         {
-            value = value.ToLower();
+            if (discriminator.EndsWith("*") && discriminator.StartsWith("*"))
+                return (A, B) => A.ToLower().Contains(B.ToLower().Substring(1, B.Length - 2));
+            else if (discriminator.EndsWith("*"))
+                return (A, B) => A.ToLower().StartsWith(B.ToLower().Substring(0, B.Length - 1));
+            else if (discriminator.StartsWith("*"))
+                return (A, B) => A.ToLower().EndsWith(B.ToLower().Substring(1, B.Length - 1));
+            return (A, B) => A.ToLower() == B.ToLower();
+        }
+
+        void PerformMaterialDiscrimination(string discriminator)
+        {
+            var matcher = MatchName(discriminator);
             foreach (var g in selection)
             {
                 if (g.TryGetComponent<Renderer>(out Renderer component))
                 {
                     foreach (var m in component.sharedMaterials)
                     {
-                        if (m != null && m.name.ToLower() == value)
+                        if (m != null && matcher(m.name, discriminator))
                             selection.Add(g);
                     }
                 }
@@ -318,20 +329,21 @@ namespace Unity.GoQL
             selection.Swap();
         }
 
-        void PerformShaderDiscrimination(string value)
+        void PerformShaderDiscrimination(string discriminator)
         {
-            value = value.ToLower();
+            var matcher = MatchName(discriminator);
             foreach (var g in selection)
             {
                 if (g.TryGetComponent<Renderer>(out Renderer component))
                 {
                     foreach (var m in component.sharedMaterials)
                     {
-                        if (m != null && m.shader.name.ToLower() == value)
+                        if (m != null && matcher(m.name, discriminator))
                             selection.Add(g);
                     }
                 }
             }
+
             selection.Swap();
         }
 
@@ -347,6 +359,7 @@ namespace Unity.GoQL
                         selection.Add(g);
                     }
                 }
+
                 selection.Swap();
             }
             else
@@ -359,7 +372,9 @@ namespace Unity.GoQL
         {
             for (var i = 0; i < SceneManager.sceneCount; i++)
             {
-                selection.AddRange(SceneManager.GetSceneAt(i).GetRootGameObjects());
+                var scene = SceneManager.GetSceneAt(i);
+                if(scene.isLoaded)
+                    selection.AddRange(scene.GetRootGameObjects());
             }
         }
 
@@ -370,11 +385,10 @@ namespace Unity.GoQL
                 for (var j = 0; j < i.transform.childCount; j++)
                     selection.Add(i.transform.GetChild(j).gameObject);
             }
+
             selection.Swap();
         }
 
         int mod(int a, int b) => a - b * Mathf.FloorToInt(1f * a / b);
-
     }
-
 }

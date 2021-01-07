@@ -2,12 +2,14 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.SelectionGroups;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
-namespace Unity.SelectionGroups
+namespace Unity.SelectionGroupsEditor
 {
     /// <summary>
     /// This class contains a set of global object id values. When a scene is loaded, they are
@@ -15,18 +17,15 @@ namespace Unity.SelectionGroups
     /// is generated for any new gameobjects added to the set.
     /// </summary>
     [System.Serializable]
-    internal class PersistentReferenceCollection : ISerializationCallbackReceiver, System.IDisposable, IEnumerable<UnityEngine.Object>
+    internal class PersistentReferenceCollection : ISerializationCallbackReceiver, IDisposable, IEnumerable<Object>
     {
-        OrderedSet<UnityEngine.Object> activeObjects = new OrderedSet<UnityEngine.Object>();
-        Dictionary<int, GlobalObjectId> instanceIdMap = new Dictionary<int, GlobalObjectId>();
+        OrderedSet<UnityEngine.Object> activeObjects = new OrderedSet<Object>();
         HashSet<GlobalObjectId> globalObjectIdSet = new HashSet<GlobalObjectId>();
 
         [SerializeField] string[] _objectIds;
 
         public int LoadedObjectCount => activeObjects.Count;
         public int TotalObjectCount => globalObjectIdSet.Count;
-
-        public UnityEngine.Object this[int index] { get => activeObjects[index]; set => activeObjects[index] = value; }
 
         /// <summary>
         /// Load references to objects that currently exist in a scene.
@@ -44,33 +43,40 @@ namespace Unity.SelectionGroups
             ConvertSceneObjectsToGlobalObjectIds();
         }
 
-        public void Add(UnityEngine.Object[] objects)
+        public void Add(IList<Object> objects)
         {
             activeObjects.AddRange(objects);
             ConvertSceneObjectsToGlobalObjectIds();
         }
 
+        public bool Update(UnityEngine.Object[] objects)
+        {
+            var newObjects = new HashSet<UnityEngine.Object>(objects);
+            newObjects.ExceptWith(activeObjects);
+            if (newObjects.Count > 0)
+            {
+                Clear();
+                activeObjects.AddRange(objects);
+                return true;
+            }
+            return false;
+        }
+
         public void Remove(UnityEngine.Object obj)
         {
             activeObjects.Remove(obj);
-            var id = obj.GetInstanceID();
-            var gid = instanceIdMap[id];
-            instanceIdMap.Remove(id);
+            var gid = GlobalObjectId.GetGlobalObjectIdSlow(obj);
             globalObjectIdSet.Remove(gid);
         }
 
-        public void Remove(UnityEngine.Object[] objects)
+        public void Remove(IList<Object> objects)
         {
             activeObjects.Remove(objects);
-            foreach (var obj in objects)
+            foreach (var gid in GetGlobalObjectIds(objects))
             {
-                var id = obj.GetInstanceID();
-                if (instanceIdMap.TryGetValue(id, out var gid))
-                {
-                    instanceIdMap.Remove(id);
-                    globalObjectIdSet.Remove(gid);
-                }
+                globalObjectIdSet.Remove(gid);
             }
+            
         }
 
         public PersistentReferenceCollection()
@@ -110,49 +116,53 @@ namespace Unity.SelectionGroups
             var objects = activeObjects.ToArray();
             var gids = GetGlobalObjectIds(objects);
             globalObjectIdSet.UnionWith(gids);
-            for (var i = 0; i < objects.Length; i++)
-                if (objects[i] != null)
-                    instanceIdMap[objects[i].GetInstanceID()] = gids[i];
         }
 
         internal void Clear()
         {
             globalObjectIdSet.Clear();
             activeObjects.Clear();
-            instanceIdMap.Clear();
         }
 
         internal void ConvertGlobalObjectIdsToSceneObjects()
         {
             activeObjects.Clear();
-            instanceIdMap.Clear();
-            var outputObjects = new UnityEngine.Object[globalObjectIdSet.Count];
             var gids = globalObjectIdSet.ToArray();
+            var outputObjects = new UnityEngine.Object[gids.Length];
             GlobalObjectId.GlobalObjectIdentifiersToObjectsSlow(gids, outputObjects);
             for (var i = 0; i < outputObjects.Length; i++)
             {
                 var obj = outputObjects[i];
+                //Debug.Log($"GID: {gids[i]}, OBJ: {obj} -> GUID: {GlobalObjectId.GetGlobalObjectIdSlow(obj)}");
+                //Sometimes invalid objects are returned. https://fogbugz.unity3d.com/f/cases/1291291/
+                //This is the workaround.
                 if (obj != null)
                 {
-                    activeObjects.Add(obj);
-                    instanceIdMap[obj.GetInstanceID()] = gids[i];
+                    //if(gids[i] == GlobalObjectId.GetGlobalObjectIdSlow(obj))
+                    var x = gids[i];
+                    var y = GlobalObjectId.GetGlobalObjectIdSlow(obj);
+                    if(y.identifierType == x.identifierType && y.targetObjectId == x.targetObjectId && y.targetPrefabId == x.targetPrefabId && y.assetGUID == x.assetGUID)
+                        activeObjects.Add(obj);
                 }
             }
         }
 
-        internal GlobalObjectId[] GetGlobalObjectIds(params UnityEngine.Object[] gameObjects)
+        internal GlobalObjectId[] GetGlobalObjectIds(IList<Object> objects)
         {
-            var gids = new GlobalObjectId[gameObjects.Length];
-            GlobalObjectId.GetGlobalObjectIdsSlow(gameObjects, gids);
+            var gids = new GlobalObjectId[objects.Count];
+            GlobalObjectId.GetGlobalObjectIdsSlow(objects.ToArray(), gids);
             return gids;
         }
 
         public void OnAfterDeserialize()
         {
             var ids = new GlobalObjectId[_objectIds.Length];
+            globalObjectIdSet.Clear();
+            activeObjects.Clear();
             for (var i = 0; i < _objectIds.Length; i++)
                 if (GlobalObjectId.TryParse(_objectIds[i], out ids[i]))
                     globalObjectIdSet.Add(ids[i]);
+            EditorApplication.delayCall += ConvertGlobalObjectIdsToSceneObjects;
         }
 
         public void OnBeforeSerialize()

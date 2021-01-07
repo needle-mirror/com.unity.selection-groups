@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Unity.SelectionGroups
 {
@@ -9,7 +10,7 @@ namespace Unity.SelectionGroups
     /// A List which only contains unique references.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    internal class OrderedSet<T> : IList<T>
+    public class OrderedSet<T> : IList<T>
     {
         List<T> items = new List<T>();
         HashSet<T> uniqueIndex = new HashSet<T>();
@@ -56,8 +57,10 @@ namespace Unity.SelectionGroups
 
         public void AddRange(IEnumerable<T> objectReferences)
         {
-            foreach(var i in objectReferences) 
+            foreach (var i in objectReferences)
+            {
                 Add(i);
+            }
         }
 
         public void Insert(int index, T item)
@@ -74,7 +77,7 @@ namespace Unity.SelectionGroups
             return items.Remove(item);
         }
 
-        public void Remove(T[] items)
+        public void Remove(IList<T> items)
         {
             uniqueIndex.ExceptWith(items);
             foreach(var i in items) {
@@ -93,5 +96,6 @@ namespace Unity.SelectionGroups
         {
             return items.GetEnumerator();
         }
+
     }
 }

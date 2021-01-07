@@ -1,36 +1,41 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace Unity.SelectionGroups.Runtime
 {
     /// <summary>
     /// This class is used to provide selection group information during play-mode. It reflects the information in the Editor-only class.
     /// </summary>
-    public class SelectionGroup : MonoBehaviour
+    [ExecuteAlways]
+    public class SelectionGroup : MonoBehaviour, ISelectionGroup, ISerializationCallbackReceiver
     {
-        /// <summary>
-        /// Unique ID of this group.
-        /// </summary>
-        public int groupId;
         /// <summary>
         /// A color assigned to this group.
         /// </summary>
-        public Color color;
+        [SerializeField] Color color;
         /// <summary>
         /// If not empty, this is a GoQL query string used to create the set of matching objects for this group.
         /// </summary>
-        public string query;
+        [SerializeField] string query = string.Empty;
+
+        [SerializeField] SelectionGroupScope scope = SelectionGroupScope.Scene;
+
         /// <summary>
         /// The members of this group.
         /// </summary>
-        public List<UnityEngine.Object> members;
+        OrderedSet<Object> members = new OrderedSet<Object>();
+        
+        [SerializeField] Object[] _members;
 
         GoQL.ParseResult parseResult;
         List<object> code;
         GoQL.GoQLExecutor executor;
-
+        HashSet<string> enabledTools = new HashSet<string>();
+        
         /// <summary>
         /// An enumerator that matches only the GameObject members of this group.
         /// </summary>
@@ -46,16 +51,71 @@ namespace Unity.SelectionGroups.Runtime
         {
             executor = new GoQL.GoQLExecutor();
             executor.Code = query;
+            SelectionGroupManager.Register(this);
         }
 
-        /// <summary>
-        /// Run the GoQL query attached to this group, adding any new members that are discovered.
-        /// </summary>
-        void RefreshQueryResults()
+        void OnDisable()
         {
-            executor.Code = query;
+            SelectionGroupManager.Unregister(this);
+        }
+
+        void OnDestroy()
+        {
+            // SelectionGroupManager.Delete(this);
+        }
+
+        public string Name
+        {
+            get => this.name;
+            set => this.name = value;
+        }
+
+        public string Query
+        {
+            get => this.query; 
+            set => this.query = value;
+        }
+
+        public Color Color
+        {
+            get => this.color; 
+            set => this.color = value;
+        }
+
+        public HashSet<string> EnabledTools
+        {
+            get => enabledTools;
+            set => enabledTools = value;
+        }
+
+        public SelectionGroupScope Scope
+        {
+            get => scope; 
+            set => scope = value;
+        }
+
+        public int Count => members.Count;
+        public bool ShowMembers { get; set; }
+        
+        public void Add(IList<Object> objectReferences)
+        {
+            var myScene = gameObject.scene;
+            foreach (var i in objectReferences)
+            {
+                if (i is GameObject go && go.scene != myScene)
+                    continue;
+                members.Add(i);
+            }
+        }
+
+        public void Remove(IList<Object> objectReferences)
+        {
+            members.Remove(objectReferences);
+        }
+
+        public void Clear()
+        {
             members.Clear();
-            members.AddRange(executor.Execute());
         }
 
         /// <summary>
@@ -76,6 +136,22 @@ namespace Unity.SelectionGroups.Runtime
                     }
                 }
             }
+        }
+
+        public IEnumerator<Object> GetEnumerator() => members.GetEnumerator();
+        
+        IEnumerator IEnumerable.GetEnumerator() => members.GetEnumerator();
+
+        public void OnBeforeSerialize()
+        {
+            _members = members.ToArray();
+        }
+
+        public void OnAfterDeserialize()
+        {
+            members.Clear();
+            if (_members != null)
+                members.AddRange(_members);
         }
     }
 }

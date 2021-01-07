@@ -1,11 +1,13 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using Unity.SelectionGroups;
+using Unity.SelectionGroups.Runtime;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 
-namespace Unity.SelectionGroups
+namespace Unity.SelectionGroupsEditor
 {
 
     public partial class SelectionGroupEditorWindow : EditorWindow
@@ -14,28 +16,25 @@ namespace Unity.SelectionGroups
         void OnEnable()
         {
             titleContent.text = "Selection Groups";
-            editorWindow = this;
-            this.wantsMouseMove = true;
+            wantsMouseMove = true;
+            SelectionGroupManager.Create -= RepaintOnCreate;
+            SelectionGroupManager.Create += RepaintOnCreate;
+            SelectionGroupManager.Delete -= RepaintOnDelete;
+            SelectionGroupManager.Delete += RepaintOnDelete;
         }
+
+        void RepaintOnDelete(ISelectionGroup @group) => 
+            Repaint();
+
+        void RepaintOnCreate(SelectionGroupScope scope, string s, string query, Color color, IList<Object> members) =>
+            Repaint();
 
         void OnDisable()
         {
-            editorWindow = null;
+            SelectionGroupManager.Create -= RepaintOnCreate;
+            SelectionGroupManager.Delete -= RepaintOnDelete;
         }
-
-        void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            Repaint();
-        }
-
-        void OnFocus()
-        {
-        }
-
-        void OnLostFocus()
-        {
-        }
-
+        
         void OnGUI()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -43,13 +42,7 @@ namespace Unity.SelectionGroups
                 GUILayout.Label("Selection Groups are not available in Play Mode.");
                 return;
             }
-            if (SelectionGroupManager.instance == null)
-            {
-                GUILayout.Label("Waiting for SelectionGroupManager to load.");
-                return;
-            }
-            //Debug.Log(Event.current.type);
-            // Profiler.BeginSample("SelectionGroupEditorWindow");
+            
             SetupStyles();
             DrawGUI();
 
@@ -59,12 +52,10 @@ namespace Unity.SelectionGroups
                     OnValidateCommand(Event.current);
                     break;
                 case EventType.ExecuteCommand:
-                    // Debug.Log($"Command: {Event.current.commandName}");
                     OnExecuteCommand(Event.current);
                     break;
             }
             Repaint();
-            // Profiler.EndSample();
         }
 
         void OnExecuteCommand(Event current)
@@ -88,7 +79,6 @@ namespace Unity.SelectionGroups
                         current.Use();
                         break;
                     case "SoftDelete":
-                        Undo.RegisterCompleteObjectUndo(SelectionGroupManager.instance, "Remove");
                         activeSelectionGroup.Remove(Selection.objects);
                         Selection.objects = null;
                         UpdateActiveSelection();
@@ -96,17 +86,7 @@ namespace Unity.SelectionGroups
                         return;
                 }
         }
-
-        void Update()
-        {
-            if (SelectionGroupManager.instance == null)
-            {
-                SelectionGroupManager.CreateAndLoad();
-                Repaint();
-            }
-
-        }
-
+        
         void OnSelectionChange()
         {
             UpdateActiveSelection();
@@ -137,8 +117,6 @@ namespace Unity.SelectionGroups
                         current.Use();
                     return;
             }
-            // Debug.Log(current.commandName);
         }
-
     }
 }

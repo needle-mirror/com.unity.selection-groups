@@ -1,11 +1,12 @@
-using System;
-using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using Unity.SelectionGroups;
+using Unity.SelectionGroups.Runtime;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 
-namespace Unity.SelectionGroups
+namespace Unity.SelectionGroupsEditor
 {
     /// <summary>
     /// Implements the configuration dialog in the editor for a selection group. 
@@ -15,7 +16,7 @@ namespace Unity.SelectionGroups
         [SerializeField] int groupId;
         ReorderableList exclusionList;
 
-        SelectionGroup group;
+        ISelectionGroup group;
         GoQL.GoQLExecutor executor = new GoQL.GoQLExecutor();
         SelectionGroupEditorWindow parentWindow;
         string message = string.Empty;
@@ -23,42 +24,43 @@ namespace Unity.SelectionGroups
         bool showDebug = false;
         SelectionGroupDebugInformation debugInformation;
 
-        internal static void Open(SelectionGroup group, SelectionGroupEditorWindow parentWindow)
+        internal static void Open(ISelectionGroup group, SelectionGroupEditorWindow parentWindow)
         {
             var dialog = EditorWindow.GetWindow<SelectionGroupConfigurationDialog>();
-            // var dialog = ScriptableObject.CreateInstance(typeof(SelectionGroupConfigurationDialog)) as SelectionGroupConfigurationDialog;
-            dialog.groupId = group.groupId;
+            dialog.group = group;
             dialog.parentWindow = parentWindow;
             dialog.refreshQuery = true;
-            // dialog.ShowModalUtility();
-            dialog.titleContent.text = $"Configure {group.name}";
+            dialog.titleContent.text = $"Configure {group.Name}";
             dialog.ShowPopup();
             dialog.debugInformation = null;
         }
 
         void OnGUI()
         {
-            if (SelectionGroupManager.instance == null) return;
-            group = SelectionGroupManager.instance.GetGroup(groupId);
+            if (group == null)
+            {
+                Close();
+                return;
+            }
             using (var cc = new EditorGUI.ChangeCheckScope())
             {
                 GUILayout.Label("Selection Group Properties", EditorStyles.largeLabel);
-                group.name = EditorGUILayout.TextField("Group Name", group.name);
-                group.color = EditorGUILayout.ColorField("Color", group.color);
+                group.Name = EditorGUILayout.TextField("Group Name", group.Name);
+                group.Color = EditorGUILayout.ColorField("Color", group.Color);
                 EditorGUILayout.LabelField("GameObject Query");
-                var q = group.query;
-                group.query = EditorGUILayout.TextField(group.query);
-                refreshQuery = refreshQuery || (q != group.query);
+                var q = group.Query;
+                group.Query = EditorGUILayout.TextField(group.Query);
+                refreshQuery = refreshQuery || (q != group.Query);
                 if (refreshQuery)
                 {
-                    var code = GoQL.Parser.Parse(group.query, out GoQL.ParseResult parseResult);
+                    var code = GoQL.Parser.Parse(group.Query, out GoQL.ParseResult parseResult);
                     if (parseResult == GoQL.ParseResult.OK)
                     {
-                        executor.Code = group.query;
+                        executor.Code = group.Query;
                         var objects = executor.Execute();
                         message = $"{objects.Length} results.";
-                        group.Clear();
-                        group.Add(objects);
+                        @group.Clear();
+                        @group.Add(objects);
                         parentWindow.Repaint();
                     }
                     else
@@ -73,34 +75,32 @@ namespace Unity.SelectionGroups
                     EditorGUILayout.HelpBox(message, MessageType.Info);
                 }
                 GUILayout.Space(5);
-                // if (exclusionList == null)
-                // {
-                //     exclusionList = new ReorderableList(group.exclude, typeof(SelectionGroup), false, false, true, true);
-                //     exclusionList.drawElementCallback = DrawSelectionGroupElement;
-                // }
-                // exclusionList.DoLayoutList();
+                var scope = @group.Scope;
+                scope = (SelectionGroupScope) EditorGUILayout.EnumPopup(@group.Scope);
+                if (scope != @group.Scope)
+                {
+                    SelectionGroupManager.ChangeGroupScope(group, scope);
+                    Close();
+                }
                 GUILayout.BeginVertical("box");
                 GUILayout.Label("Enabled Toolbar Buttons", EditorStyles.largeLabel);
                 foreach (var i in TypeCache.GetMethodsWithAttribute<SelectionGroupToolAttribute>())
                 {
                     var attr = i.GetCustomAttribute<SelectionGroupToolAttribute>();
-                    var enabled = group.enabledTools.Contains(attr.toolId);
+                    var enabled = group.EnabledTools.Contains(attr.toolId);
                     var content = EditorGUIUtility.IconContent(attr.icon);
                     var _enabled = EditorGUILayout.ToggleLeft(content, enabled, "button");
                     if (enabled && !_enabled)
                     {
-                        group.enabledTools.Remove(attr.toolId);
+                        group.EnabledTools.Remove(attr.toolId);
                     }
                     if (!enabled && _enabled)
                     {
-                        group.enabledTools.Add(attr.toolId);
+                        group.EnabledTools.Add(attr.toolId);
                     }
                 }
                 GUILayout.EndVertical();
-                if (cc.changed)
-                {
-                    SelectionGroupManager.instance.SetIsDirty();
-                }
+                
                 showDebug = GUILayout.Toggle(showDebug, "Show Debug Info", "button");
                 if (showDebug)
                 {
@@ -114,25 +114,7 @@ namespace Unity.SelectionGroups
             }
         }
 
-        private void DrawSelectionGroupElement(Rect rect, int index, bool isActive, bool isFocused)
-        {
-            if (index >= 0 && index < group.exclude.Count)
-            {
-                group.exclude[index] = SelectionGroupManager.Popup(rect, group.exclude[index]);
-            }
-        }
+        
     }
-
-    class SelectionGroupDebugInformation
-    {
-
-        public string text;
-
-        public SelectionGroupDebugInformation(SelectionGroup group)
-        {
-            text = EditorJsonUtility.ToJson(group, prettyPrint: true);
-        }
-    }
-
 }
 
