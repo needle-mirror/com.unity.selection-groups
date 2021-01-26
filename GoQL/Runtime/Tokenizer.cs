@@ -10,9 +10,14 @@ namespace Unity.GoQL
         System.Action _TokenizeFunction;
         string code = "";
         int index = 0;
-        string acc = "";
+        string valueAccumulator = "";
         List<Token> _tokens = new List<Token>();
         HashSet<char> specialChars = new HashSet<char>("<>,:/[]".ToCharArray());
+
+        HashSet<string> operators = new HashSet<string>(new[]
+        {
+            "**"
+        });
 
         public List<Token> Tokenize(string code)
         {
@@ -25,7 +30,7 @@ namespace Unity.GoQL
             return _tokens;
         }
 
-        char PeekChar() => code[index];
+        char PeekChar(int offset=0) => code[index+offset];
 
         void ConsumeChar() => index++;
 
@@ -33,10 +38,11 @@ namespace Unity.GoQL
 
         void WhatIsMyNextState()
         {
+            Log($"What is my next state: {DataAvailable}");
             if (DataAvailable)
             {
                 var c = PeekChar();
-                if (char.IsLetter(c) || _TokenizeFunction == CollectString && char.IsDigit(c) || c == '*')
+                if (char.IsLetter(c) || c == '*' || _TokenizeFunction == CollectString && char.IsDigit(c))
                     ChangeState(CollectString);
                 else if (char.IsNumber(c) || c == '-')
                     ChangeState(CollectNumber);
@@ -58,19 +64,21 @@ namespace Unity.GoQL
         void CollectString()
         {
             var c = PeekChar();
-            if (acc.Length == 0)
+            if (valueAccumulator.Length == 0) //This is the first char, so collect it.
             {
-                acc += c;
+                valueAccumulator += c;
                 ConsumeChar();
+                if (!DataAvailable) 
+                    AddToken(TokenType.String);
             }
-            else if (specialChars.Contains(c))
+            else if (specialChars.Contains(c)) //Special chars will end and collect the string
             {
                 AddToken(TokenType.String);
                 WhatIsMyNextState();
             }
-            else
+            else //This is part of the string being collected.
             {
-                acc += c;
+                valueAccumulator += c;
                 ConsumeChar();
                 if (!DataAvailable) 
                     AddToken(TokenType.String);
@@ -82,7 +90,7 @@ namespace Unity.GoQL
             var c = PeekChar();
             if (char.IsNumber(c) || c == '.' || c == '-')
             {
-                acc += c;
+                valueAccumulator += c;
                 ConsumeChar();
             }
             else
@@ -98,49 +106,43 @@ namespace Unity.GoQL
             switch (c)
             {
                 case '[':
-                    acc += c;
+                    valueAccumulator += c;
                     ConsumeChar();
                     AddToken(TokenType.OpenSquare);
                     WhatIsMyNextState();
                     break;
                 case ']':
-                    acc += c;
+                    valueAccumulator += c;
                     ConsumeChar();
                     AddToken(TokenType.CloseSquare);
                     WhatIsMyNextState();
                     break;
                 case '<':
-                    acc += c;
+                    valueAccumulator += c;
                     ConsumeChar();
                     AddToken(TokenType.OpenAngle);
                     WhatIsMyNextState();
                     break;
                 case '>':
-                    acc += c;
+                    valueAccumulator += c;
                     ConsumeChar();
                     AddToken(TokenType.CloseAngle);
                     WhatIsMyNextState();
                     break;
                 case ':':
-                    acc += c;
+                    valueAccumulator += c;
                     ConsumeChar();
                     AddToken(TokenType.Colon);
                     WhatIsMyNextState();
                     break;
                 case ',':
-                    acc += c;
+                    valueAccumulator += c;
                     ConsumeChar();
                     AddToken(TokenType.Comma);
                     WhatIsMyNextState();
                     break;
-                case '*':
-                    acc += c;
-                    ConsumeChar();
-                    AddToken(TokenType.Wildcard);
-                    WhatIsMyNextState();
-                    break;
                 case '/':
-                    acc += c;
+                    valueAccumulator += c;
                     ConsumeChar();
                     AddToken(TokenType.Slash);
                     WhatIsMyNextState();
@@ -156,9 +158,11 @@ namespace Unity.GoQL
 
         void AddToken(TokenType type)
         {
-            Log("Adding token: " + type + " " + acc);
-            _tokens.Add(new Token(type, acc));
-            acc = "";
+            if (type == TokenType.String && operators.Contains(valueAccumulator))
+                type = TokenType.Operator;
+            Log("Adding token: " + type + " " + valueAccumulator);
+            _tokens.Add(new Token(type, valueAccumulator));
+            valueAccumulator = "";
         }
 
         void ChangeState(System.Action fn)

@@ -78,10 +78,24 @@ namespace Unity.GoQL
                 case TokenType.Slash:
                     instructions.Add(GoQLCode.EnterChildren);
                     return ParseResult.OK;
+                case TokenType.Operator:
+                    return ParseOperator(token, instructions);
             }
             return ParseResult.OK;
         }
 
+        private static ParseResult ParseOperator(Token token, List<object> instructions)
+        {
+            switch (token.value)
+            {
+                case "**":
+                    instructions.Add(GoQLCode.CollectAllAncestors);
+                    break;
+            }
+            return ParseResult.OK;
+        }
+
+        
         static ParseResult _ParseDiscriminators(List<Token> tokens, List<object> instructions)
         {
             var elements = new List<object>();

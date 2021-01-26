@@ -101,6 +101,7 @@ namespace Unity.GoQL
                 instructions.Clear();
                 GoQL.Parser.Parse(code, instructions, out parseResult);
             }
+            
             stack.Clear();
             selection.Clear();
             Error = string.Empty;
@@ -149,7 +150,22 @@ namespace Unity.GoQL
                 case GoQLCode.FilterName:
                     FilterName();
                     break;
+                case GoQLCode.CollectAllAncestors:
+                    CollectAllAncestors();
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(i), i, null);
             }
+        }
+
+        private void CollectAllAncestors()
+        {
+            foreach (var i in selection)
+            {
+                foreach(var j in i.GetComponentsInChildren<Transform>()) 
+                    selection.Add(j.gameObject);
+            }
+            selection.Swap();
         }
 
         void CollectAllObjects()
@@ -179,43 +195,42 @@ namespace Unity.GoQL
         void FilterName()
         {
             var q = stack.Pop().ToString();
-            if (q.StartsWith("*") && q.EndsWith("*"))
+            var isWildCardOnly = q == "*";
+            if (isWildCardOnly)
             {
-                q = q.Substring(1, q.Length - 2);
+                //TODO: can this be reduced to a nop?
                 foreach (var i in selection)
-                {
-                    if (GetName(i).Contains(q))
-                        selection.Add(i);
-                }
-            }
-            else if (q.StartsWith("*"))
-            {
-                q = q.Substring(1);
-                foreach (var i in selection)
-                {
-                    if (GetName(i).EndsWith(q))
-                        selection.Add(i);
-                }
-            }
-            else if (q.EndsWith("*"))
-            {
-                q = q.Substring(0, q.Length - 1);
-                foreach (var i in selection)
-                {
-                    if (GetName(i).StartsWith(q))
-                        selection.Add(i);
-                }
+                    selection.Add(i);
+                selection.Swap();
             }
             else
             {
+                var isWildCardFirst = q.First() == '*';
+                var isWildCardLast = q.Last() == '*';
+                if (isWildCardFirst)
+                    q = q.Substring(1);
+                if (isWildCardLast)
+                    q = q.Substring(0, q.Length - 1);
+
                 foreach (var i in selection)
                 {
-                    if (GetName(i) == q)
+                    if (IsNameMatch(GetName(i), q, isWildCardFirst, isWildCardLast))
                         selection.Add(i);
                 }
-            }
 
-            selection.Swap();
+                selection.Swap();
+            }
+        }
+
+        bool IsNameMatch(string name, string q, bool isWildCardFirst, bool isWildCardLast)
+        {
+            if (isWildCardFirst && isWildCardLast)
+                return name.Contains(q);
+            if (isWildCardFirst)
+                return name.EndsWith(q);
+            if (isWildCardLast)
+                return name.StartsWith(q);
+            return name == q;
         }
 
         void FilterIndex()
