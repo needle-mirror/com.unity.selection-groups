@@ -4,12 +4,12 @@ using UnityEngine;
 namespace Unity.SelectionGroups.Runtime
 {
     
-    public interface ISelectionGroupContainer : IEnumerable<ISelectionGroup>
+    internal interface ISelectionGroupContainer : IEnumerable<ISelectionGroup>
     {
         
     }
 
-    public interface ISelectionGroup: IEnumerable<Object>
+    internal interface ISelectionGroup
     {
         string Name { get; set;  }
         string Query { get; set;  }
@@ -18,6 +18,7 @@ namespace Unity.SelectionGroups.Runtime
         SelectionGroupScope Scope { get; set; }
         int Count { get; }
         bool ShowMembers { get; set; }
+        IList<Object> Members { get; }
         void Add(IList<Object> objectReferences);
         void Remove(IList<Object> objectReferences);
         void Clear();

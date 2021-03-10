@@ -1,15 +1,26 @@
-﻿using System.Linq;
+using System.Linq;
+using System.Reflection;
+using NUnit.Framework;
 using Unity.SelectionGroups;
 using Unity.SelectionGroups.Runtime;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 
 namespace Unity.SelectionGroupsEditor
 {
 
-    public partial class SelectionGroupEditorWindow : EditorWindow
+    internal partial class SelectionGroupEditorWindow : EditorWindow
     {
+        private const string AddGroup    = "Add Group";
+        private const int    RightMargin = 16;
+        
+        private GUIStyle Foldout;
+        private GUIStyle Label;
+        private GUIContent editorHeaderContent, sceneHeaderContent;
+        private GUIContent InspectorLock;       
+        
 
         [MenuItem("Window/General/Selection Groups")]
         static void OpenWindow()
@@ -18,36 +29,53 @@ namespace Unity.SelectionGroupsEditor
             window.Show();
         }
 
+        float CalculateHeight()
+        {
+            var height = EditorGUIUtility.singleLineHeight;
+            var groups = SelectionGroupManager.Groups;
+            for (var i=0; i<groups.Count; i++)
+            {
+                var group = groups[i];
+                height += EditorGUIUtility.singleLineHeight + 3;
+                if (group.ShowMembers)
+                {
+                    height += group.Count * EditorGUIUtility.singleLineHeight;
+                }
+            }
+            return height;
+        }
+
         void DrawGUI()
         {
-            scroll = EditorGUILayout.BeginScrollView(scroll);
-            GUILayout.BeginHorizontal();
+            var viewRect = Rect.zero;
+            viewRect.width = position.width-16;
+            viewRect.height = CalculateHeight();
+            var windowRect = new Rect(0, 0, position.width, position.height);
+            scroll = GUI.BeginScrollView(windowRect, scroll, viewRect);
             
-            if (GUILayout.Button("Add Group")) CreateNewGroup();
-            
-            GUILayout.EndHorizontal();
+            Rect cursor = new Rect(0, 0, position.width-RightMargin, EditorGUIUtility.singleLineHeight);
+            if (GUI.Button(cursor, AddGroup)) CreateNewGroup();
+            cursor.y += cursor.height;
 
-            foreach (var group in SelectionGroupManager.Groups)
+            var groups = SelectionGroupManager.Groups;
+            for (var i=0; i<groups.Count; i++)
             {
+                var group = groups[i];
                 if (group == null) continue;
-                var isActive = activeNames.Contains(group.Name);
-                GUILayout.Space(3);
+                cursor.y += 3;
                 
-                var rect = GUILayoutUtility.GetRect(1, EditorGUIUtility.singleLineHeight);
                 //early out if this group yMin is below window rect (not visible).
-                if ((rect.yMin - scroll.y) > position.height) break;
-                var showChildren = DrawHeader(rect, group, isActive: isActive);
-                var dropRect = rect;
+                if ((cursor.yMin - scroll.y) > position.height) break;
+                var dropRect = cursor;
+                cursor = DrawHeader(cursor, group, out bool showChildren);
 
                 if (showChildren)
                 {
-                    rect = GUILayoutUtility.GetRect(1, (EditorGUIUtility.singleLineHeight) * group.Count);
-
-                    dropRect.yMax = rect.yMax;
+                    // dropRect.yMax = rect.yMax;
                     //early out if this group yMax is above window rect (not visible).
-                    if (rect.yMax - scroll.y < 0)
-                        continue;
-                    DrawAllGroupMembers(rect, group, allowRemove: true);
+                    // if (rect.yMax - scroll.y < 0)
+                        // continue;
+                    cursor = DrawAllGroupMembers(cursor, group, allowRemove: true);
                 }
                 try
                 {
@@ -65,42 +93,43 @@ namespace Unity.SelectionGroupsEditor
                 UpdateActiveSelection();
                 Event.current.Use();
             }
-            EditorGUILayout.EndScrollView();
+            GUI.EndScrollView();
 
         }
 
-        void ShowSettings()
-        {
-            var menu = new GenericMenu();
-            menu.ShowAsContext();
-        }
-        
         void SetupStyles()
         {
             if (miniButtonStyle == null)
             {
                 miniButtonStyle = EditorStyles.miniButton;
-                miniButtonStyle.padding = new RectOffset(0, 0, 0, 0);
+                miniButtonStyle.padding = new RectOffset(0, 0, 0, 0); 
+                Foldout = "foldout";
+                Label = "label";
+                InspectorLock = EditorGUIUtility.IconContent("InspectorLock");
             }
         }
 
-        void DrawAllGroupMembers(Rect rect, ISelectionGroup group, bool allowRemove)
+        Rect DrawAllGroupMembers(Rect rect, ISelectionGroup group, bool allowRemove)
         {
             rect.height = EditorGUIUtility.singleLineHeight;
-            foreach (var i in group.ToArray())
+            foreach (Object i in group.Members) 
             {
+                if (null == i)
+                    continue;
+                
                 //if rect is below window, early out.
-                if (rect.yMin - scroll.y > position.height) return;
+                if (rect.yMin - scroll.y > position.height) return rect;
                 //if rect is in window, draw.
                 if (rect.yMax - scroll.y > 0)
                     DrawGroupMember(rect, group, i, allowRemove);
                 rect.y += rect.height;
             }
+            return rect;
         }
 
-        void DrawGroupMember(Rect rect, ISelectionGroup group, UnityEngine.Object g, bool allowRemove)
+        void DrawGroupMember(Rect rect, ISelectionGroup group, UnityEngine.Object g, bool allowRemove) 
         {
-            if (g == null) return;
+            Assert.IsNotNull(g);
             var e = Event.current;
             var content = EditorGUIUtility.ObjectContent(g, g.GetType());
             var isInSelection = activeSelection.Contains(g);
@@ -119,8 +148,9 @@ namespace Unity.SelectionGroupsEditor
             var isLeftMouseUp = isMouseOver && isLeftButton && isMouseUp;
             var isHotMember = g == hotMember;
             var updateSelectionObjects = false;
+            var isPaint = e.type == EventType.Repaint;
 
-            if (isMouseOver)
+            if (isMouseOver && isPaint)
                 EditorGUI.DrawRect(rect, HOVER_COLOR);
 
             if (isLeftMouseDown)
@@ -155,8 +185,8 @@ namespace Unity.SelectionGroupsEditor
                 {
                     activeSelection.Add(g);
                     int firstIndex = -1, lastIndex = -1;
-                    var objects = group.ToArray();
-                    for (var i = 0; i < objects.Length; i++)
+                    var objects = group.Members;
+                    for (var i = 0; i < objects.Count; i++)
                     {
                         if (activeSelection.Contains(objects[i]))
                         {
@@ -198,21 +228,25 @@ namespace Unity.SelectionGroupsEditor
                 }
             }
 
-            if (isInSelection)
-                EditorGUI.DrawRect(rect, SELECTION_COLOR);
-
-            if (g.hideFlags.HasFlag(HideFlags.NotEditable))
+            if (isPaint)
             {
-                var icon = EditorGUIUtility.IconContent("InspectorLock");
-                var irect = rect;
-                irect.width = 16;
-                irect.height = 14;
-                GUI.DrawTexture(irect, icon.image);
+                if (isInSelection)
+                    EditorGUI.DrawRect(rect, SELECTION_COLOR);
+
+                if (g.hideFlags.HasFlag(HideFlags.NotEditable))
+                {
+                    var icon = InspectorLock;
+                    var irect = rect;
+                    irect.width = 16;
+                    irect.height = 14;
+                    GUI.DrawTexture(irect, icon.image);
+                }
+
+                rect.x += 24;
+                GUI.contentColor = allowRemove ? Color.white : Color.Lerp(Color.white, Color.yellow, 0.25f);
+                GUI.Label(rect, content);
+                GUI.contentColor = Color.white;
             }
-            rect.x += 24;
-            GUI.contentColor = allowRemove ? Color.white : Color.Lerp(Color.white, Color.yellow, 0.25f);
-            GUI.Label(rect, content);
-            GUI.contentColor = Color.white;
 
             if (isRightButton && isMouseOver && isMouseDown && isInSelection)
             {
@@ -224,11 +258,18 @@ namespace Unity.SelectionGroupsEditor
                 Selection.objects = activeSelection.ToArray();
 
         }
-
-        bool DrawHeader(Rect rect, ISelectionGroup group, bool isActive)
-        {
-            var isAvailableInEditMode = true;
-            var content = EditorGUIUtility.IconContent(group.Scope==SelectionGroupScope.Editor?"d_Project":"SceneAsset Icon");
+        
+        Rect DrawHeader(Rect cursor, ISelectionGroup group, out bool showChildren) 
+        {           
+            bool isPaint = Event.current.type == EventType.Repaint;            
+            Rect rect = new Rect(cursor) {x = 0, };            
+            bool isAvailableInEditMode = true;
+            GUIContent content;
+            if (group.Scope == SelectionGroupScope.Editor)
+                content = editorHeaderContent;
+            else
+                content = sceneHeaderContent;
+                    
             //Editor groups don't work in play mode, as GetGloBALoBJECTiD does not work in play mode.
             if (group.Scope == SelectionGroupScope.Editor && EditorApplication.isPlayingOrWillChangePlaymode)
             {
@@ -239,56 +280,89 @@ namespace Unity.SelectionGroupsEditor
             {
                 content.text = $"{group.Name}";    
             }
+
+            //
+            const float FOLDOUT_WIDTH    = 16;
+            const float COLOR_WIDTH      = 128;
+            const float SEPARATOR_WIDTH  = 8;
+            float       currentViewWidth = EditorGUIUtility.currentViewWidth;
             
-            var backgroundColor = group == activeSelectionGroup ? Color.white * 0.6f : Color.white * 0.3f;
-            EditorGUI.DrawRect(rect, backgroundColor);
+            //background
+            Color backgroundColor = group == activeSelectionGroup ? Color.white * 0.6f : Color.white * 0.3f;
+            if (isPaint) 
             {
-                rect.width = 16;
-                group.ShowMembers = EditorGUI.Toggle(rect, group.ShowMembers, "foldout");
-                rect.x += 16;
-                rect.width = EditorGUIUtility.currentViewWidth - 128;
+                rect.width = currentViewWidth - RightMargin - COLOR_WIDTH;                
+                EditorGUI.DrawRect(rect, backgroundColor);
+            } 
+            
+            //foldout and label
+            float labelWidth = currentViewWidth
+                             - (COLOR_WIDTH + FOLDOUT_WIDTH + RightMargin + SEPARATOR_WIDTH);
+            {
+                rect.width        =  FOLDOUT_WIDTH;
+                group.ShowMembers =  EditorGUI.Toggle(rect, group.ShowMembers, Foldout);
+                rect.x            += FOLDOUT_WIDTH;
+                rect.width        =  labelWidth;
             }
             if(isAvailableInEditMode)
                 HandleHeaderMouseEvents(rect, group.Name, group);
-            GUI.Label(rect, content, "label");
+            if(isPaint) 
+                GUI.Label(rect, content, Label);
 
-            rect.x += rect.width;
-            rect = DrawTools(rect, group);
-            rect.x += 8;
-            rect.xMax = position.xMax;
+            rect.x     += rect.width;
+            
+            if (group.EnabledTools.Count > 0)
+                DrawTools(rect.x, rect.y, group);
+            
+            rect.x     += SEPARATOR_WIDTH;
+            rect.width =  COLOR_WIDTH;
 
-            EditorGUI.DrawRect(rect, new Color(group.Color.r, group.Color.g, group.Color.b));
+            if(isPaint) EditorGUI.DrawRect(rect, new Color(group.Color.r, group.Color.g, group.Color.b));
 
-            return isAvailableInEditMode ? group.ShowMembers : false;
+            showChildren =  isAvailableInEditMode ? group.ShowMembers : false;
+            rect.x = cursor.x;
+            rect.y += rect.height;
+            return rect;
         }
 
-        Rect DrawTools(Rect rect, ISelectionGroup group)
+        
+        void DrawTools(float rightAlignedX, float y, ISelectionGroup group)
         {
-            rect.width = 18;
-            rect.height = 18;
+            Assert.Greater(group.EnabledTools.Count,0);
+            const int TOOL_X_DIFF     = 18;
+            const int TOOL_HEIGHT     = 18;
+            int       numEnabledTools = group.EnabledTools.Count;
+
+            Rect rect = new Rect(0, y, TOOL_X_DIFF, TOOL_HEIGHT); 
+            int  i    = 0;
             
-            foreach (var i in TypeCache.GetMethodsWithAttribute<SelectionGroupToolAttribute>())
-            {
-                var attr = AttributeCache.GetCustomAttribute<SelectionGroupToolAttribute>(i);
-                if (!group.EnabledTools.Contains(attr.toolId))
-                    continue;
-                var content = EditorGUIUtility.IconContent(attr.icon);
+            foreach (string toolId in group.EnabledTools) {
+                SelectionGroupToolAttribute attr        = null;
+                MethodInfo                  methodInfo  = null;
+                
+                bool found = SelectionGroupToolAttributeCache.TryGetAttribute(toolId, out attr);
+                Assert.IsTrue(found);
+                found = SelectionGroupToolAttributeCache.TryGetMethodInfo(toolId, out methodInfo);
+                Assert.IsTrue(found);
+
+                GUIContent content = EditorGUIUtility.IconContent(attr.icon);
                 content.tooltip = attr.description;
+
+                rect.x = rightAlignedX - ((numEnabledTools - i) * TOOL_X_DIFF);
                 if (GUI.Button(rect, content, miniButtonStyle))
                 {
                     try
                     {
-                        i.Invoke(null, new object[] { group });
+                        methodInfo.Invoke(null, new object[] { group });
                     }
                     catch (System.Exception e)
                     {
                         Debug.LogException(e);
                     }
-                }
-                rect.x += rect.width;
+                }                
+                
+                ++i;
             }
-
-            return rect;
         }
 
         void ShowGameObjectContextMenu(Rect rect, ISelectionGroup group, UnityEngine.Object g, bool allowRemove)
@@ -312,7 +386,7 @@ namespace Unity.SelectionGroupsEditor
             var menu = new GenericMenu();
             menu.AddItem(new GUIContent("Select All"), false, () =>
             {
-                Selection.objects = activeSelectionGroup.ToArray();
+                Selection.objects = activeSelectionGroup.Members.ToArray();
                 UpdateActiveSelection();
             });
             menu.AddSeparator(string.Empty);
@@ -368,7 +442,7 @@ namespace Unity.SelectionGroupsEditor
                     case EventType.MouseDrag:
                         DragAndDrop.PrepareStartDrag();
                         DragAndDrop.StartDrag(groupName);
-                        DragAndDrop.objectReferences = group.ToArray();
+                        DragAndDrop.objectReferences = group.Members.ToArray();
                         e.Use();
                         break;
                 }

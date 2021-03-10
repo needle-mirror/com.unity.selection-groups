@@ -1,26 +1,31 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 using Unity.SelectionGroups;
 using Unity.SelectionGroups.Runtime;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.SceneManagement;
 
 
 namespace Unity.SelectionGroupsEditor
 {
 
-    public partial class SelectionGroupEditorWindow : EditorWindow
+    internal partial class SelectionGroupEditorWindow : EditorWindow
     {
 
         void OnEnable()
         {
             titleContent.text = "Selection Groups";
-            wantsMouseMove = true;
+            wantsMouseMove = false;
             SelectionGroupManager.Create -= RepaintOnCreate;
             SelectionGroupManager.Create += RepaintOnCreate;
             SelectionGroupManager.Delete -= RepaintOnDelete;
             SelectionGroupManager.Delete += RepaintOnDelete;
+            
+            editorHeaderContent = EditorGUIUtility.IconContent("d_Project");
+            sceneHeaderContent = EditorGUIUtility.IconContent("SceneAsset Icon");
         }
 
         void RepaintOnDelete(ISelectionGroup @group) => 
@@ -37,21 +42,34 @@ namespace Unity.SelectionGroupsEditor
         
         void OnGUI()
         {
-            isReadOnly = EditorApplication.isPlayingOrWillChangePlaymode;
-            
-            SetupStyles();
-            DrawGUI();
-
-            switch (Event.current.type)
+            try
             {
-                case EventType.ValidateCommand:
-                    OnValidateCommand(Event.current);
-                    break;
-                case EventType.ExecuteCommand:
-                    OnExecuteCommand(Event.current);
-                    break;
+                Profiler.BeginSample("Selection Groups Editor Window");
+                
+                var e = Event.current;
+                if (e.type == EventType.Layout) return;
+                
+                isReadOnly = EditorApplication.isPlayingOrWillChangePlaymode;
+
+                SetupStyles();
+                DrawGUI();
+
+                switch (Event.current.type)
+                {
+                    case EventType.ValidateCommand:
+                        OnValidateCommand(Event.current);
+                        break;
+                    case EventType.ExecuteCommand:
+                        OnExecuteCommand(Event.current);
+                        break;
+                }
             }
-            Repaint();
+            finally
+            {
+                Profiler.EndSample();
+            }
+
+            
         }
 
         void OnExecuteCommand(Event current)
@@ -60,7 +78,7 @@ namespace Unity.SelectionGroupsEditor
                 switch (current.commandName)
                 {
                     case "SelectAll":
-                        Selection.objects = activeSelectionGroup.ToArray();
+                        Selection.objects = activeSelectionGroup.Members.ToArray();
                         UpdateActiveSelection();
                         current.Use();
                         break;
@@ -70,7 +88,7 @@ namespace Unity.SelectionGroupsEditor
                         current.Use();
                         break;
                     case "InvertSelection":
-                        Selection.objects = new HashSet<Object>(activeSelectionGroup).Except(Selection.objects).ToArray();
+                        Selection.objects = new HashSet<Object>(activeSelectionGroup.Members).Except(Selection.objects).ToArray();
                         UpdateActiveSelection();
                         current.Use();
                         break;

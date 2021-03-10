@@ -12,7 +12,7 @@ namespace Unity.SelectionGroupsEditor
     /// This class is the Editor-only container for selection group information and members.
     /// </summary>
     [System.Serializable]
-    public partial class SelectionGroup : ISelectionGroup
+    internal partial class SelectionGroup : ISelectionGroup
     {
         [SerializeField] string name;
         [SerializeField] Color color;
@@ -29,9 +29,14 @@ namespace Unity.SelectionGroupsEditor
             PersistentReferenceCollection.LoadObjects(forceReload:true);
         }
 
+        public IList<Object> Members
+        {
+            get => PersistentReferenceCollection.Items;
+        }
+
         public IEnumerable<T> GetMemberComponents<T>() where T : Component
         {
-            foreach (var i in this)
+            foreach (var i in this.Members)
             {
                 if (i is GameObject go)
                 {

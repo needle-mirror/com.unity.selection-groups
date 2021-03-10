@@ -1,5 +1,5 @@
 {
-    "name": "SelectionGroupsRuntime",
+    "name": "Unity.SelectionGroups",
     "references": [
         "GUID:f05b2c431bca79e4fa618c6f7b09e6c4"
     ],

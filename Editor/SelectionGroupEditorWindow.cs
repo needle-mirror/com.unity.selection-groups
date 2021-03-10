@@ -12,7 +12,7 @@ namespace Unity.SelectionGroupsEditor
     /// The main editor window for working with selection groups.
     /// </summary>
     
-    public partial class SelectionGroupEditorWindow : EditorWindow
+    internal partial class SelectionGroupEditorWindow : EditorWindow
     {
 
         const int LEFT_MOUSE_BUTTON = 0;
@@ -27,7 +27,6 @@ namespace Unity.SelectionGroupsEditor
         float width;
         GUIStyle miniButtonStyle;
         HashSet<Object> activeSelection = new HashSet<Object>();
-        HashSet<string> activeNames = new HashSet<string>();
         Object hotMember;
 
         private bool isReadOnly = false;
@@ -40,7 +39,7 @@ namespace Unity.SelectionGroupsEditor
 
         static void CreateNewGroup()
         {
-            SelectionGroupManager.Create(SelectionGroupScope.Editor, "New Group", string.Empty, Color.HSVToRGB(Random.value, Random.Range(0.9f, 1f), Random.Range(0.9f, 1f)), new List<Object>());
+            SelectionGroupManager.Create(SelectionGroupScope.Scene, "New Group", string.Empty, Color.HSVToRGB(Random.value, Random.Range(0.9f, 1f), Random.Range(0.9f, 1f)), new List<Object>());
         }
 
         void RegisterUndo(ISelectionGroup @group, string msg)

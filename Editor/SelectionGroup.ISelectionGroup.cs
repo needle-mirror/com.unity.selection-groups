@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Unity.SelectionGroupsEditor
 {
-    public partial class SelectionGroup
+    internal partial class SelectionGroup
     {
         /// <summary>
         /// Number of objects in this group that are available to be referenced. (Ie. they exist in a loaded scene)
@@ -46,12 +46,6 @@ namespace Unity.SelectionGroupsEditor
             set => scope = value;
         }
 
-        public int GroupId
-        {
-            get => groupId;
-            set => groupId = value;
-        }
-        
         public void OnDelete(ISelectionGroup group)
         {
             
@@ -79,23 +73,5 @@ namespace Unity.SelectionGroupsEditor
             PersistentReferenceCollection.Clear();
         }
 
-        /// <summary>
-        /// Enumerator for all members of this group.
-        /// </summary>
-        /// <returns></returns>
-        public IEnumerator<Object> GetEnumerator()
-        {
-            PersistentReferenceCollection.LoadObjects();
-            return PersistentReferenceCollection.GetEnumerator();
-        }
-        /// <summary>
-        /// Enumerable for all members of this group.
-        /// </summary>
-        /// <returns></returns>
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            PersistentReferenceCollection.LoadObjects();
-            return PersistentReferenceCollection.GetEnumerator();
-        }
     }
 }

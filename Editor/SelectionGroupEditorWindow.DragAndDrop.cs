@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Unity.SelectionGroupsEditor
 {
-    public partial class SelectionGroupEditorWindow : EditorWindow
+    internal partial class SelectionGroupEditorWindow : EditorWindow
     {
         
         bool HandleDragEvents(Rect rect, ISelectionGroup group)
@@ -35,7 +35,7 @@ namespace Unity.SelectionGroupsEditor
                     // Debug.Log($"Start Drag: {group.Name}");
                     DragAndDrop.PrepareStartDrag();
                     if (hotMember != null)
-                        DragAndDrop.objectReferences = new[] {hotMember};
+                        DragAndDrop.objectReferences = new[] { hotMember };
                     else
                         DragAndDrop.objectReferences = Selection.objects;
 
