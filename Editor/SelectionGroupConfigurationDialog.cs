@@ -59,8 +59,7 @@ namespace Unity.SelectionGroupsEditor
                         executor.Code = group.Query;
                         var objects = executor.Execute();
                         message = $"{objects.Length} results.";
-                        @group.Clear();
-                        @group.Add(objects);
+                        @group.SetMembers(objects);
                         parentWindow.Repaint();
                     }
                     else
@@ -76,7 +75,7 @@ namespace Unity.SelectionGroupsEditor
                 }
                 GUILayout.Space(5);
                 var scope = @group.Scope;
-                scope = (SelectionGroupScope) EditorGUILayout.EnumPopup(@group.Scope);
+                scope = (SelectionGroupDataLocation) EditorGUILayout.EnumPopup(@group.Scope);
                 if (scope != @group.Scope)
                 {
                     SelectionGroupManager.ChangeGroupScope(group, scope);

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Reflection;
 using Unity.SelectionGroups;
 using Unity.SelectionGroups.Runtime;
 using UnityEditor;
@@ -30,16 +31,36 @@ namespace Unity.SelectionGroupsEditor
         Object hotMember;
 
         private bool isReadOnly = false;
+        private static float? performQueryRefresh = null;
 
+        
         [InitializeOnLoadMethod]
         static void SetupQueryCallbacks()
         {
-            EditorApplication.hierarchyChanged += SelectionGroupManager.ExecuteSelectionGroupQueries;
+            EditorApplication.hierarchyChanged -= OnHierarchyChanged;
+            EditorApplication.hierarchyChanged += OnHierarchyChanged;
+        }
+
+        void Update()
+        {
+            //This should coalesce many consecutive and possibly duplicate or spurious
+            //hierarchy change events into a single query update and repaint operation.
+            if (performQueryRefresh.HasValue && EditorApplication.timeSinceStartup > performQueryRefresh.Value)
+            {
+                SelectionGroupManager.ExecuteSelectionGroupQueries();
+                performQueryRefresh = null;
+                Repaint();
+            }
+        }
+        
+        private static void OnHierarchyChanged()
+        {
+            performQueryRefresh = (float) (EditorApplication.timeSinceStartup + 0.2f);
         }
 
         static void CreateNewGroup()
         {
-            SelectionGroupManager.Create(SelectionGroupScope.Scene, "New Group", string.Empty, Color.HSVToRGB(Random.value, Random.Range(0.9f, 1f), Random.Range(0.9f, 1f)), new List<Object>());
+            SelectionGroupManager.Create(SelectionGroupDataLocation.Scene, "New Group", string.Empty, Color.HSVToRGB(Random.value, Random.Range(0.9f, 1f), Random.Range(0.9f, 1f)), new List<Object>());
         }
 
         void RegisterUndo(ISelectionGroup @group, string msg)

@@ -7,7 +7,7 @@ namespace Unity.SelectionGroups.Runtime
 {
     internal static class SelectionGroupManager
     {
-        public delegate void CreateEvent(SelectionGroupScope scope, string name, string query, Color color, IList<Object> members);
+        public delegate void CreateEvent(SelectionGroupDataLocation scope, string name, string query, Color color, IList<Object> members);
         public delegate void DeleteEvent(ISelectionGroup group);
 
         public static CreateEvent Create;
@@ -21,6 +21,7 @@ namespace Unity.SelectionGroups.Runtime
             Create += OnCreate;
             Delete += OnDelete;
         }
+        
         public static void ExecuteSelectionGroupQueries()
         {
             foreach (var i in groups)
@@ -30,6 +31,7 @@ namespace Unity.SelectionGroups.Runtime
         }
 
         public static IList<ISelectionGroup> Groups => groups.List;
+        
         public static IEnumerable<string> GroupNames => groups.OrderBy(i => i.Name).Select(g => g.Name);
 
         public static void Register(ISelectionGroup @group)
@@ -48,17 +50,17 @@ namespace Unity.SelectionGroups.Runtime
             Unregister(group);
         }
         
-        static void OnCreate(SelectionGroupScope scope, string name, string query, Color color, IList<Object> members)
+        static void OnCreate(SelectionGroupDataLocation scope, string name, string query, Color color, IList<Object> members)
         {
         }
         
         public static void ClearEditorGroups()
         {
             foreach(var i in groups.ToArray())
-                if(i.Scope == SelectionGroupScope.Editor) Unregister(i);
+                if(i.Scope == SelectionGroupDataLocation.Editor) Unregister(i);
         }
 
-        public static void ChangeGroupScope(ISelectionGroup @group, SelectionGroupScope scope)
+        public static void ChangeGroupScope(ISelectionGroup @group, SelectionGroupDataLocation scope)
         {
             Create(scope, @group.Name, @group.Query, @group.Color, @group.Members);
             Delete(@group);
@@ -72,8 +74,7 @@ namespace Unity.SelectionGroups.Runtime
             {
                 executor.Code = group.Query;
                 var objects = executor.Execute();
-                group.Clear();
-                group.Add(objects);
+                group.SetMembers(objects);
             }
         }
     }
