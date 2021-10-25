@@ -1,10 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
-using System.Collections;
-using System.Linq;
 using Unity.SelectionGroups;
 using Unity.SelectionGroups.Runtime;
-using UnityEngine.SceneManagement;
 
 namespace Unity.SelectionGroupsEditor
 {
@@ -12,14 +9,13 @@ namespace Unity.SelectionGroupsEditor
     /// This class is the Editor-only container for selection group information and members.
     /// </summary>
     [System.Serializable]
-    internal partial class SelectionGroup : ISelectionGroup
+    internal partial class EditorSelectionGroup : ISelectionGroup
     {
         [SerializeField] string name;
         [SerializeField] Color color;
         [SerializeField] bool showMembers;
         [SerializeField] string query = string.Empty;
         [SerializeField] int groupId;
-        [SerializeField] SelectionGroupDataLocation scope = SelectionGroupDataLocation.Editor;
         HashSet<string> enabledTools = new HashSet<string>();
         
         /// <summary>

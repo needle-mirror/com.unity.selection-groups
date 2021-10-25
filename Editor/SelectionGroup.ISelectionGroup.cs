@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Unity.SelectionGroupsEditor
 {
-    internal partial class SelectionGroup
+    internal partial class EditorSelectionGroup
     {
         /// <summary>
         /// Number of objects in this group that are available to be referenced. (Ie. they exist in a loaded scene)
@@ -42,8 +42,7 @@ namespace Unity.SelectionGroupsEditor
 
         public SelectionGroupDataLocation Scope
         {
-            get => scope;
-            set => scope = value;
+            get => SelectionGroupDataLocation.Editor;
         }
 
         public void OnDelete(ISelectionGroup group)
