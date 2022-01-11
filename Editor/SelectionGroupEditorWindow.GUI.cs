@@ -100,6 +100,7 @@ namespace Unity.SelectionGroups.Editor
             //Handle clicks on blank areas of window.
             if (Event.current.type == EventType.MouseDown && Event.current.button == 0) {
                 ClearSelectedMembers();
+                SetUnityEditorSelection(null);
                 Event.current.Use();
             }
             GUI.EndScrollView();
@@ -382,7 +383,8 @@ namespace Unity.SelectionGroups.Editor
                             ShowGroupContextMenu(rect, @group.Name, @group);
                             break;
                         case LEFT_MOUSE_BUTTON:
-                            if (evt.clickCount >1) {
+                            m_leftMouseWasDoubleClicked = evt.clickCount > 1;
+                            if (m_leftMouseWasDoubleClicked) {
                                 SelectAllGroupMembers(group);
                                 
                                 //[TODO-sin:2022-01-06] Remove in version 0.7.0 
@@ -395,7 +397,7 @@ namespace Unity.SelectionGroups.Editor
                 case EventType.MouseUp:
                     switch (evt.button) {
                         case LEFT_MOUSE_BUTTON:
-                            if (evt.clickCount == 1) {
+                            if (!m_leftMouseWasDoubleClicked) {
                                 SetUnityEditorSelection(group);
                                 m_selectedGroupMembers.Clear();
                             }
@@ -405,6 +407,9 @@ namespace Unity.SelectionGroups.Editor
                     break;
                 
                 case EventType.MouseDrag:
+                    if ((SelectionGroup) m_activeSelectionGroup != group)
+                        break;
+                    
                     DragAndDrop.PrepareStartDrag();
                     DragAndDrop.objectReferences = new[] { @group.gameObject };
                     DragAndDrop.SetGenericData(DRAG_ITEM_TYPE,DragItemType.GROUP);
@@ -679,7 +684,9 @@ namespace Unity.SelectionGroups.Editor
         static readonly Color HOVER_COLOR          = new Color32(112, 112, 112, 128);
 
         private ISelectionGroup m_shiftPivotGroup       = null;
-        private Object         m_shiftPivotGroupMember = null;
+        private Object          m_shiftPivotGroupMember = null;
+        
+        private bool m_leftMouseWasDoubleClicked = false;
 
     }
 } //end namespace
