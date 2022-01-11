@@ -1,15 +1,16 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using Unity.SelectionGroups;
-using Unity.SelectionGroups.Runtime;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 
-namespace Unity.SelectionGroupsEditor
+namespace Unity.SelectionGroups.Editor
 {
 
     internal partial class SelectionGroupEditorWindow : EditorWindow
@@ -18,28 +19,19 @@ namespace Unity.SelectionGroupsEditor
         void OnEnable()
         {
             titleContent.text = "Selection Groups";
-            wantsMouseMove = false;
-            SelectionGroupManager.Create -= RepaintOnCreate;
-            SelectionGroupManager.Create += RepaintOnCreate;
-            SelectionGroupManager.Delete -= RepaintOnDelete;
-            SelectionGroupManager.Delete += RepaintOnDelete;
+            wantsMouseMove = true;
             
-            editorHeaderContent = EditorGUIUtility.IconContent("d_Project");
-            sceneHeaderContent = EditorGUIUtility.IconContent("SceneAsset Icon");
+            //[TODO-sin:2021-12-20] Remove in version 0.7.0             
+            //editorHeaderContent = EditorGUIUtility.IconContent("d_Project");
+            sceneHeaderContent     =  EditorGUIUtility.IconContent("SceneAsset Icon");
+            Undo.undoRedoPerformed += OnUndoRedoPerformed;
         }
 
-        void RepaintOnDelete(ISelectionGroup @group) => 
-            Repaint();
-
-        void RepaintOnCreate(SelectionGroupDataLocation scope, string s, string query, Color color, IList<Object> members) =>
-            Repaint();
-
-        void OnDisable()
-        {
-            SelectionGroupManager.Create -= RepaintOnCreate;
-            SelectionGroupManager.Delete -= RepaintOnDelete;
+        private void OnDisable() {
+            Undo.undoRedoPerformed -= OnUndoRedoPerformed;
         }
-        
+
+
         void OnGUI()
         {
             try
@@ -49,8 +41,6 @@ namespace Unity.SelectionGroupsEditor
                 var e = Event.current;
                 if (e.type == EventType.Layout) return;
                 
-                isReadOnly = EditorApplication.isPlayingOrWillChangePlaymode;
-
                 SetupStyles();
                 DrawGUI();
 
@@ -74,46 +64,39 @@ namespace Unity.SelectionGroupsEditor
 
         void OnExecuteCommand(Event current)
         {
-            if (activeSelectionGroup != null)
-                switch (current.commandName)
-                {
-                    case "SelectAll":
-                        Selection.objects = activeSelectionGroup.Members.ToArray();
-                        UpdateActiveSelection();
-                        current.Use();
-                        break;
-                    case "DeselectAll":
-                        Selection.objects = null;
-                        UpdateActiveSelection();
-                        current.Use();
-                        break;
-                    case "InvertSelection":
-                        Selection.objects = new HashSet<Object>(activeSelectionGroup.Members).Except(Selection.objects).ToArray();
-                        UpdateActiveSelection();
-                        current.Use();
-                        break;
-                    case "SoftDelete":
-                        if (!isReadOnly)
-                        {
-                            activeSelectionGroup.Remove(Selection.objects);
-                            Selection.objects = null;
-                            UpdateActiveSelection();
-                            current.Use();
+            switch (current.commandName) {
+                case "SelectAll":
+                    foreach (SelectionGroup group in SelectionGroupManager.GetOrCreateInstance().Groups) {
+                        m_selectedGroupMembers.AddGroupMembers(group);
+                    }
+                    UpdateUnityEditorSelectionWithMembers();
+                    current.Use();
+                    break;
+                case "DeselectAll":
+                    ClearSelectedMembers();
+                    current.Use();
+                    break;
+                case "InvertSelection":
+                    GroupMembersSelection prevSelectedMembers = new GroupMembersSelection(m_selectedGroupMembers);
+                    m_selectedGroupMembers.Clear();
+                    
+                    foreach (SelectionGroup group in SelectionGroupManager.GetOrCreateInstance().Groups) {
+                        foreach (Object m in group.Members) {
+                            if (prevSelectedMembers.Contains(group, m))
+                                continue;
+                            m_selectedGroupMembers.AddObject(group,m);
                         }
-                        return;
-                }
-        }
-        
-        void OnSelectionChange()
-        {
-            UpdateActiveSelection();
-        }
-
-        void UpdateActiveSelection()
-        {
-            activeSelection.Clear();
-            if (Selection.objects != null)
-                activeSelection.UnionWith(Selection.objects);
+                    }
+                    current.Use();
+                    break;
+                case "SoftDelete": //When "Delete button is pressed"
+                    if (null != m_activeSelectionGroup) {
+                        DeleteGroup(m_activeSelectionGroup);
+                    } else {
+                        RemoveSelectedMembersFromGroup();  
+                    }
+                    return;
+            }
         }
 
         void OnValidateCommand(Event current)
@@ -130,10 +113,14 @@ namespace Unity.SelectionGroupsEditor
                     current.Use();
                     return;
                 case "SoftDelete":
-                    if (activeSelectionGroup != null)
-                        current.Use();
+                    current.Use();
                     return;
             }
         }
+        
+        private void OnUndoRedoPerformed() {
+            Repaint();
+        }
+        
     }
 }

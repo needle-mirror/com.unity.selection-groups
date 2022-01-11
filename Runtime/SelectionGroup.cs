@@ -1,84 +1,111 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.GoQL;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.Serialization;
 using Object = UnityEngine.Object;
 
-namespace Unity.SelectionGroups.Runtime
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+namespace Unity.SelectionGroups
 {
     /// <summary>
     /// A component to group a number of GameObjects under a common name.
     /// </summary>
     [ExecuteAlways]
+    [AddComponentMenu("")]
     public class SelectionGroup : MonoBehaviour, ISelectionGroup, ISerializationCallbackReceiver    
     {
         /// <summary>
         /// A color assigned to this group.
         /// </summary>
-        [SerializeField] Color color;
+        [HideInInspector][SerializeField] Color color;
         /// <summary>
         /// If not empty, this is a GoQL query string used to create the set of matching objects for this group.
         /// </summary>
-        [SerializeField] string query = string.Empty;
+        [HideInInspector][SerializeField] string query = string.Empty;
 
         //Obsolete
         [HideInInspector][FormerlySerializedAs("_members")] [SerializeField] Object[] _legacyMembers;
         
-        [SerializeField] List<Object> members = new List<Object>();
+        [HideInInspector][SerializeField] List<Object> members = new List<Object>();
         
 #pragma warning disable 414    
-        [HideInInspector][SerializeField] private int sgVersion      = CUR_SG_VERSION; 
+        [HideInInspector][SerializeField] private int sgVersion = CUR_SG_VERSION; 
 #pragma warning restore 414
-        
-        private const int CUR_SG_VERSION = (int) SGVersion.INITIAL;        
-        
-
-        GoQL.ParseResult parseResult;
-        List<object> code;
-        GoQL.GoQLExecutor executor;
-        HashSet<string> enabledTools = new HashSet<string>();
-        
-        
-        string _name;
-        
-        
+                
         void OnEnable()
         {
-            executor = new GoQL.GoQLExecutor();
-            executor.Code = query;
-            SelectionGroupManager.Register(this);
+            //SelectionGroup won't be selectable in the select popup window if HideInHierarchy is set 
+            this.gameObject.hideFlags = HideFlags.None;
+            this.transform.hideFlags  = HideFlags.HideInInspector;
+            
+            if (!m_registerOnEnable) 
+                return;
+            SelectionGroupManager.GetOrCreateInstance().Register(this);
+            m_registerOnEnable = false;
         }
 
-        void OnDisable()
-        {
-            SelectionGroupManager.Unregister(this);
+        private void OnDestroy() {
+            SelectionGroupManager.GetOrCreateInstance().Unregister(this);
         }
+
 
         /// <inheritdoc/>
         public string Name
         {
-            get
-            {
-                if (string.IsNullOrEmpty(_name))
-                    _name = this.name;
-                return _name;
-            }
-            set
-            {
-                this.name = value;
-                _name = value;
-            }
+            get { return gameObject.name; }
+            set { gameObject.name = value; }
         }
+
 
         /// <inheritdoc/>
         public string Query
         {
             get => this.query; 
-            set => this.query = value;
         }
 
+        /// <summary>
+        /// Sets the query which will automatically include GameObjects from the hierarchy that match the query into the group.
+        /// Returns early when the query is not valid (GoQL.ParseResult.OK).
+        /// </summary>
+        /// <param name="q">The query</param>
+        /// <returns>The parse result of the query.</returns>
+        public void SetQuery(string q) {
+
+            if (string.IsNullOrEmpty(q)) {
+                this.query = q;
+                return;
+            }
+
+            this.query = q;
+            UpdateQueryResults();
+        }
+
+        internal void UpdateQueryResults() {
+            GoQL.GoQLExecutor executor = new GoQL.GoQLExecutor();
+            GoQL.Parser.Parse(this.query, out m_queryParseResult);
+            if (m_queryParseResult != GoQL.ParseResult.OK) 
+                return;
+            
+            executor.Code = this.query;
+            GameObject[] objects = executor.Execute();
+            SetMembersInternal(objects);
+        }
+        
+
+        public GoQL.ParseResult GetLastQueryParseResult() => m_queryParseResult;
+        
+        
+        /// <inheritdoc/>
+        public bool IsAutoFilled() {
+            return !string.IsNullOrEmpty(Query);
+        }
+        
         /// <inheritdoc/>
         public Color Color
         {
@@ -86,22 +113,13 @@ namespace Unity.SelectionGroups.Runtime
             set => this.color = value;
         }
 
-        /// <inheritdoc/>
-        public HashSet<string> EnabledTools
-        {
-            get => enabledTools;
-            set => enabledTools = value;
-        }
+        internal bool GetEditorToolStatus(int toolID) => m_editorToolsStatus[toolID];
 
-        /// <inheritdoc/>
-        public SelectionGroupDataLocation Scope
-        {
-            get => SelectionGroupDataLocation.Scene;
-            set  {
-                //[TODO-sin: 2021-10-22] Remove set starting from version 0.6.0
-            }
+        public void EnableEditorTool(int toolID, bool toolEnabled) {
+            Assert.IsTrue(toolID < (int)SelectionGroupToolType.MAX);
+            m_editorToolsStatus[toolID] = toolEnabled;
         }
-
+        
         /// <inheritdoc/>
         public int Count => members.Count;
         /// <inheritdoc/>
@@ -125,7 +143,16 @@ namespace Unity.SelectionGroups.Runtime
         }
         
         /// <inheritdoc/>
-        public void SetMembers(IList<Object> objects) 
+        public void SetMembers(IEnumerable<Object> objects) {
+            if (IsAutoFilled()) {
+                Debug.LogWarning($"[SG] Group {Name} is auto-filled. Can't manually set members");
+                return;
+            }
+                
+            SetMembersInternal(objects);
+        }
+
+        private void SetMembersInternal(IEnumerable<Object> objects) 
         {
             members.Clear();
             foreach (var i in objects) 
@@ -137,12 +164,14 @@ namespace Unity.SelectionGroups.Runtime
         }
 
         /// <inheritdoc/>
-        public void Remove(IList<Object> objectReferences)
-        {
+        public void Remove(IEnumerable<Object> objectReferences) {
+            if (IsAutoFilled())
+                return;
+            
             members.RemoveAll(a=> objectReferences.Contains(a));
             RemoveNullMembers();
         }
-
+        
         /// <inheritdoc/>
         public void Clear()
         {
@@ -194,13 +223,41 @@ namespace Unity.SelectionGroups.Runtime
                 members.AddRange(_legacyMembers);                 
                 _legacyMembers = null; //clear
             }
+
+            if (sgVersion < (int) SGVersion.ORDERED_0_6_0) {
+                m_registerOnEnable = true;
+            }
+
+            //Ensure that we always have the required status elements
+            while (m_editorToolsStatus.Count < (int)SelectionGroupToolType.MAX) {
+                m_editorToolsStatus.Add(false);
+            }
             
-            sgVersion = CUR_SG_VERSION;            
-        }        
+            sgVersion = CUR_SG_VERSION;
+        }
+
+#if UNITY_EDITOR        
+        internal void SetOnDestroyedInEditorCallback(Action cb) {
+            m_onDestroyedInEditorCB = cb;
+        }
+#endif        
+
+//----------------------------------------------------------------------------------------------------------------------
+
+        [SerializeField] List<bool> m_editorToolsStatus = new List<bool>(new bool[(int) SelectionGroupToolType.MAX]);
+
+        private GoQL.ParseResult m_queryParseResult = ParseResult.Empty;       
         
+        private const int  CUR_SG_VERSION     = (int) SGVersion.ORDERED_0_6_0;
+        private       bool m_registerOnEnable = false;
+
+#if UNITY_EDITOR        
+        private Action m_onDestroyedInEditorCB = null;
+#endif        
         
         enum SGVersion {
             INITIAL = 1,    //initial
+            ORDERED_0_6_0 = 2, //The order of selection groups is maintained by SelectionGroupManager
 
         }        
     }

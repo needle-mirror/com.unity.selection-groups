@@ -2,9 +2,9 @@ using NUnit.Framework;
 using Unity.GoQL;
 using UnityEngine;
 
-namespace Tests
+namespace Unity.SelectionGroups.EditorTests
 {
-    public class GoQLTests
+    internal class GoQLTests
     {
         [Test]
         public void TestTokenizerSimple()
