@@ -2,21 +2,24 @@
   "displayName": "Selection Groups",
   "name": "com.unity.selection-groups",
   "unity": "2019.4",
-  "version": "0.7.2-preview",
+  "version": "0.7.3-preview",
   "description": "Provides editor tools for working with arbitrary groups of gameobjects along with the hierarchy window and inspector.",
   "contributors": [
     "Simon Wittber <simonwittber@unity3d.com> (https://github.com/smnwttbr)",
     "Sindharta Tanuwijaya <sindharta.tanuwijaya@unity3d.com> (https://github.com/sindharta)"
   ],
   "dependencies": {
-    "com.unity.film-internal-utilities": "0.13.0-preview"
+    "com.unity.film-internal-utilities": "0.14.1-preview"
+  },
+  "upm": {
+    "changelog": "### Added\r\n* doc: update the group creation section in Getting Started and SelectionGroupsWindow pages\r\n\r\n### Changed\r\n* change: use a dropdown button to create a group or group from selection\r\n* deps: use com.unity.film-internal-utilities@0.14.1-preview \r\n\r\n### Fixed\r\n* fix: the use of negative index relative to child count in GoQL"
   },
   "upmCi": {
-    "footprint": "33b69508e97bde2e7b76bdcd9be1585f430292fe"
+    "footprint": "e590254dba2cc4c28ca8c5c0b161c1228592e057"
   },
   "repository": {
     "url": "https://github.com/Unity-Technologies/com.unity.selection-groups.git",
     "type": "git",
-    "revision": "ea42642108f7ffc8c447506fe51de7af4e2ea48a"
+    "revision": "f9ba4702d50b1afdb63ca56f71e3ac5dd2c7a99a"
   }
 }
