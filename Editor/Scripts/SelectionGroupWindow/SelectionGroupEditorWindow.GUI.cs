@@ -118,7 +118,7 @@ namespace Unity.SelectionGroups.Editor
                 menu.AddItem(new GUIContent("Create Empty Group"), false, CreateNewGroup);
                 if (Selection.gameObjects.Length > 0)
                 {
-                    menu.AddItem(new GUIContent("Create Group from Selection"), false, CreateNewGroupFromSelection);
+                    menu.AddItem(new GUIContent("Create Group from Selection"), false, () => CreateNewGroup(Selection.gameObjects));
                 }
                 else
                 {
@@ -150,7 +150,7 @@ namespace Unity.SelectionGroups.Editor
         Rect DrawAllGroupMembers(Rect rect, SelectionGroup group)
         {
             rect.height = EditorGUIUtility.singleLineHeight;
-            foreach (Object i in group.Members) 
+            foreach (GameObject i in group.Members) 
             {
                 if (i == null)
                     continue;
@@ -165,7 +165,7 @@ namespace Unity.SelectionGroups.Editor
             return rect;
         }
 
-        void DrawGroupMember(Rect rect, SelectionGroup group, UnityEngine.Object g) 
+        void DrawGroupMember(Rect rect, SelectionGroup group, GameObject g) 
         {
             Assert.IsNotNull(g);
             Event e = Event.current;
@@ -184,10 +184,8 @@ namespace Unity.SelectionGroups.Editor
                 }
             }
 
-            if (g is GameObject gameObject) {
-                if (SceneVisibilityManager.instance.IsHidden(gameObject)) {
-                    DrawIconTexture(0, rect.y, m_hiddenInSceneTex);
-                }
+            if (SceneVisibilityManager.instance.IsHidden(g)) {
+                DrawIconTexture(0, rect.y, m_hiddenInSceneTex);
             }
             
             if (g.hideFlags.HasFlag(HideFlags.NotEditable)) {
@@ -463,15 +461,20 @@ namespace Unity.SelectionGroups.Editor
                                     );
                                 } else {
                                     RegisterUndo(@group, "Add Members");
-                                    HashSet<Object> members = m_selectedGroupMembers.ConvertMembersToSet();
-                                    @group.Add(members);
+                                    HashSet<GameObject> members = m_selectedGroupMembers.ConvertMembersToSet();
+                                    @group.AddRange(members);
                                 }
                                 
                                 break;
                             } 
                             case DragItemType.GameObjects: {
                                 RegisterUndo(@group, "Add Members");
-                                @group.Add(DragAndDrop.objectReferences);
+                                foreach (Object obj in DragAndDrop.objectReferences) {
+                                    if (!(obj is GameObject go))
+                                        continue;
+                                    
+                                    @group.Add(go);                                    
+                                }
                                 break;
                             }
                             case DragItemType.Group: {
@@ -521,7 +524,7 @@ namespace Unity.SelectionGroups.Editor
         }
 
         
-        void HandleGroupMemberMouseEvents(Rect rect, SelectionGroup group, Object groupMember, bool isGroupMemberSelected)
+        void HandleGroupMemberMouseEvents(Rect rect, SelectionGroup group, GameObject groupMember, bool isGroupMemberSelected)
         {
             Event evt = Event.current;
             if (!rect.Contains(evt.mousePosition)) 
@@ -616,7 +619,7 @@ namespace Unity.SelectionGroups.Editor
             bool startAdd = (null == pivotSG);
 
             foreach (SelectionGroup group in allGroups) {
-                foreach (Object m in group.Members) {
+                foreach (GameObject m in group.Members) {
 
                     bool shouldToggleState = (group == pivotSG && m == pivotMember)
                         || (group == endSG && m == endMember);
@@ -651,10 +654,10 @@ namespace Unity.SelectionGroups.Editor
         }
 
         private void RemoveSelectedMembersFromGroup() {
-            foreach (KeyValuePair<SelectionGroup, OrderedSet<Object>> kv in m_selectedGroupMembers) {
+            foreach (KeyValuePair<SelectionGroup, OrderedSet<GameObject>> kv in m_selectedGroupMembers) {
                 SelectionGroup group = kv.Key;
                 RegisterUndo(group, "Remove Member");
-                group.Remove(kv.Value);
+                group.Except(kv.Value);
             }
         }
 
