@@ -2,7 +2,7 @@
   "displayName": "Selection Groups",
   "name": "com.unity.selection-groups",
   "unity": "2020.3",
-  "version": "0.9.2-preview",
+  "version": "0.9.3-preview",
   "description": "Provides editor tools for working with arbitrary groups of gameobjects along with the hierarchy window and inspector.",
   "contributors": [
     "Simon Wittber <simonwittber@unity3d.com> (https://github.com/smnwttbr)",
@@ -12,15 +12,15 @@
     "com.unity.film-internal-utilities": "0.19.1-preview"
   },
   "_upm": {
-    "changelog": "### Added\n* internal-api: add SelectionGroup.FindMemberComponents() \n\n### Changed\n* ui: move SelectionGroup color icon to the rightmost position\n* opt: replace foreach to reduce GC\n* deps: use com.unity.film-internal-utilities@0.19.1-preview"
+    "changelog": "### Changed\n* opt: reduce GC allocation in SelectionGroup.FindMemberComponents()\n\n### Fixed\n* internal-fix: turn obsolete GetMemberComponents() into a warning instead of error"
   },
   "upmCi": {
-    "footprint": "39d0d3c684621b42418b3693efd05dbe7713ccc8"
+    "footprint": "d261bb3390c54ce0bf4cf5208e760d0a420774a6"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.selection-groups@0.9/manual/index.html",
   "repository": {
     "url": "https://github.com/Unity-Technologies/com.unity.selection-groups.git",
     "type": "git",
-    "revision": "01daca8bfff102f7d7ce8de380ae47224225a2da"
+    "revision": "dd49ec9e6a296f0ab1c17bab1f58eb127d7f7cf1"
   }
 }

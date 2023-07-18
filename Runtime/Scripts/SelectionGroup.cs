@@ -348,7 +348,7 @@ namespace Unity.SelectionGroups
         /// </summary>
         /// <typeparam name="T">The type of the component</typeparam>
         /// <returns>The enumerated component</returns>        
-        [Obsolete("Use FindMemberComponents() which is optimized and returns unique Components in the group", true)]        
+        [Obsolete("Use FindMemberComponents() which is optimized and returns unique Components in the group", false)]
         internal IEnumerable<T> GetMemberComponents<T>() where T : Component {
             int numMembers = m_goMembers.Count;
             for (int i = 0; i < numMembers; ++i) {
@@ -379,9 +379,9 @@ namespace Unity.SelectionGroups
                 if (go == null) 
                     continue;
                 go.GetComponentsInChildren<T>(includeInactiveChildren, tempList);
-                tempList.Loop((T element) => {
-                    results.Add(element);
-                });
+                for (int j = 0; j < tempList.Count; ++j) {
+                    results.Add(tempList[j]);
+                }
             }
         }
         
